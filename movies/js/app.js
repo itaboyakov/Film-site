@@ -1,139 +1,104 @@
-const API_KEY = '8c8e1a50-6322-4135-8875-5d40a5420d86';
-const API_URL_POPULAR = 'https://kinopoiskapiunofficial.tech/api/v2.2/films/top?type=TOP_100_POPULAR_FILMS&page=';
-const API_URL_SEARCH = 'https://kinopoiskapiunofficial.tech/api/v2.1/films/search-by-keyword?keyword=';
-const API_FILM = 'https://kinopoiskapiunofficial.tech/api/v2.2/films/';
-const API_TRAILER = 'https://kinopoiskapiunofficial.tech/api/v2.2/films/';
-let page='1';
-let API_SEARCH ='';
-getMovies(`${API_URL_POPULAR}1`,showMovies);
-async function getMovies(url,func){
-    const resp = await fetch(url,{
-        headers: {
-            "Content-type" : "application/json",
-            'X-API-KEY': API_KEY
+import * as URLConstants from './constants.js';
+import { FilmCard } from './components/filmCard.js';
+
+// Main function
+(function init() {
+    showPopularMovies();
+    createPageToolbar();
+    // Поиск
+    document.querySelector('form').addEventListener('submit', e => {
+        e.preventDefault();
+        const selectedButtons = document.getElementsByClassName('sel');
+        selectedButtons[0]?.classList.remove('sel');
+        document.getElementsByClassName('numb')[0].classList.add('sel');
+        const keyWord = e.target.children[0].value;
+        if (keyWord) {
+            showMoviesByKeyword(keyWord);
+        } else {
+            showPopularMovies(1);
         }
     });
-    const respData = await resp.json();
-    func(respData);
+    document.querySelector('.pgnumber').addEventListener('click', changePage.bind(this));
+})();
+
+// Загрузка фильмов через API
+async function getPopularMovies(page) {
+    const url = URLConstants.API_URL_POPULAR + page;
+    return await makeRequestToServer(url);
 }
 
-function showFilmInfo(data){
-    const contentRoot = document.querySelector('.modal-container');
-    const content = `
-        <div class="film-name">
-            ${data.nameRu}
-        </div>
-        <div class="desc-fild">
-        <img class="poster" src="${data.posterUrl}" alt="">
-        <div class="right-desc" >
-        <div class="description">${data.description || ''}</div>
-        </div>
-        </div>`;
-    contentRoot.insertAdjacentHTML('beforeend', content);
-}
-function nottr(cntroot){
-    const content = `<div>
-            <h1>Трейлер не найден</h1>
-            </div> `
-    cntroot.insertAdjacentHTML('beforeend', content);
-}
-function showTrailer(data){
-    const contentRoot = document.querySelector('.right-desc');
-    if(data.items.length === 0){
-        nottr(contentRoot)
-    } else
-    for(let i=0;i <data.items.length;i++){
-         let url = data.items[i].url;
-         if(url.includes('youtube.com')){
-             url = url.replace('watch?v=','embed/');
-             url = url.replace('v/','embed/');
-             const content = `<iframe src="${url}?autoplay=1" class="trailer" allow="fullscreen"></iframe>`
-             contentRoot.insertAdjacentHTML('beforeend', content);
-             break
-         }
-         if(i === data.items.length-1){
-             nottr(contentRoot)
-         }
+async function showPopularMovies(page=1) {
+    const films = await getPopularMovies(page);
+    if (films) {
+        showMovies(films);
     }
 }
 
-function showMovies(data){
-    document.querySelector('.movies').innerHTML= '';
-    const pagination = document.querySelector('.pgnumber');
-    pagination.innerHTML=''
-    for(let i=1; i<=20;i++){
-        if(data.pagesCount < i) break;
-        pagination.insertAdjacentHTML('beforeend', `<button type='button' class="numb btn btn-outline-primary" value="${i}"> ${i}</button>`);
-    }
-    pagination.childNodes[page-1].classList.add('sel');
-    const moviesEl = document.querySelector('.movies');
-    data.films.forEach(movie => {
-        let movieEl =  `
-            <div class="movie">
-                <div class="filmId" style="display: none">${movie.filmId}</div>
-                <div class="movie-cover-inner">
-                    <img src=${movie.posterUrlPreview} alt="" class="movie-cover">
-                        <div class="movie-cover--darkened"></div>
-                </div>
-                <div class="movie-info">
-                    <div class="movie-title">${movie.nameRu || movie.nameEn}</div>
-                    <div class="movie-category">${movie.genres.map(genre => ` ${genre.genre}`)}</div>
-                    ${ movie.rating && movie.rating !== 'null' &&(movie.rating.indexOf('%')=== -1 && 1 ) ? 
-                     `<div class="movie-average movie-average--${getRateColor(movie.rating)}">${movie.rating}</div>` :''}
-                </div>
-                
-            </div>`
-
-    moviesEl.insertAdjacentHTML('beforeend',movieEl);
-    })
+async function getMoviesByKeyword(keyword, page) {
+    const url = `${URLConstants.API_URL_SEARCH}${keyword}&page=${page}`;
+    return await makeRequestToServer(url);
 }
 
-function getRateColor(rate){
-    if(rate>7.5){
-        return "green"
-    } else if(rate>5) {
-        return "orange"
-    } else return "red"
-}
-const form = document.querySelector("form");
-const search = document.querySelector(".header-search");
-form.addEventListener("submit", e => {
-    e.preventDefault();
-    API_SEARCH = `${API_URL_SEARCH}${search.value}&page=`;
-    if(search.value){
-        page='1';
-        getMovies(API_SEARCH + page,showMovies);
-        search.value = '';
-    }else {
-        API_SEARCH=''
-        page='1';
-        getMovies(API_URL_POPULAR+page,showMovies);
+async function showMoviesByKeyword(keyword, page=1) {
+    const films = await getMoviesByKeyword(keyword, page);
+    if (films) {
+        showMovies(films);
     }
-})
-document.addEventListener('click', function(event) {
-    search.value=''
-    if ([...event.target.classList].includes("numb")) {
-        event.preventDefault();
-        page = `${event.target.value}`;
+}
 
-        if(API_SEARCH == '') {
-            getMovies(API_URL_POPULAR + page,showMovies);
-        } else {
-            getMovies(API_SEARCH + page,showMovies);
+async function makeRequestToServer(url) {
+    try {
+        const responce = await fetch(url,{
+            headers: {
+                'Content-type' : 'application/json',
+                'X-API-KEY': URLConstants.API_KEY,
+            },
+        });
+        if (!responce.ok) {
+            throw new Error('Ошибка при загрузке данных');
         }
-    } else if([...event.target.classList].includes("movie-cover--darkened")) {
-        const modalRoot = event.target.closest('.movie-cover-inner');
-        let fId = modalRoot.previousElementSibling.innerText;
-        const modalPage = `
-        <div class="modalk">
-            <div class="modal-container"></div>
-        </div>
-        <div class="fon"></div>  `;
-        document.querySelector('body').insertAdjacentHTML('afterbegin',modalPage);
-         getMovies(API_FILM+fId,showFilmInfo);
-        getMovies(API_TRAILER+fId+'/videos',showTrailer);
-    } else if ([...event.target.classList].includes('fon')){
-        document.querySelector('.modalk').remove();
-        document.querySelector('.fon').remove();
+        const respData = await responce.json();
+        return respData;
+    } catch (error) {
+        console.log(error.message);
+        return false;
     }
-})
+}
+
+// Отрисовка карточек с фильмами
+function showMovies(data) {
+    createPageToolbar(data.pagesCount);
+    document.querySelector('.movies').innerHTML= '';
+    data.films.forEach(movie => {
+        const card = new FilmCard(movie);
+        card.mountCard(document.querySelector('.movies'));
+    });
+}
+
+function createPageToolbar(pagesCount = 20) {
+    const pagesTolbar = document.querySelector('.pgnumber');
+    const visibleButtonsNumber = document.getElementsByClassName('numb').length;
+    if ((pagesCount < 20 || visibleButtonsNumber < 20) && visibleButtonsNumber !== pagesCount ) {
+        pagesTolbar.innerHTML='';
+        for (let i = 1; i <= (pagesCount > 20 ? 20 : pagesCount); i++) {
+            pagesTolbar.insertAdjacentHTML('beforeend', `<button type='button' class="numb btn btn-outline-primary" value="${i}"> ${i}</button>`);
+        }
+        pagesTolbar.childNodes[0]?.classList.add('sel');
+    }
+}
+
+function changePage(e) {
+    e.preventDefault();
+    if (!e.target.classList.contains('numb')) {
+        return;
+    }
+    const selectedButtons = document.getElementsByClassName('sel');
+    selectedButtons[0] && selectedButtons[0].classList.remove('sel');
+    const page = e.target.value;
+    e.target.classList.add('sel');
+    if (!document.querySelector('.header-search').value) {
+        showPopularMovies(page);
+    } else {
+        showMoviesByKeyword(document.querySelector('.header-search').value, page);
+    }
+}
